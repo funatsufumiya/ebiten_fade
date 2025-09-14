@@ -258,14 +258,19 @@ func DeltaMore(
 }
 
 // --- Fader types ---
+func (f *InteractiveFader) Stop() {
+	f.started = false
+	f.startTime = optional.None[float64]()
+	f.fadeoutStartedTime = optional.None[float64]()
+}
 
 // InteractiveFader provides fade-in/fade-out timer for interactive usage.
 type InteractiveFader struct {
 	FadeInSec  float32
 	FadeOutSec optional.Option[float32]
 	started    bool
-	startTime  time.Time
-	fadeOutStarted bool
+	startTime  optional.Option[float64]
+	fadeoutStartedTime optional.Option[float64]
 }
 
 func NewInteractiveFader(fadeInSec float32, fadeOutSec optional.Option[float32]) *InteractiveFader {
@@ -277,84 +282,148 @@ func NewInteractiveFader(fadeInSec float32, fadeOutSec optional.Option[float32])
 
 func (f *InteractiveFader) Start() {
 	f.started = true
-	f.startTime = time.Now()
-	f.fadeOutStarted = false
+	f.startTime = optional.Some[float64](float64(time.Now().UnixNano()) / 1e9)
+	f.fadeoutStartedTime = optional.None[float64]()
 }
 
 func (f *InteractiveFader) FadeOut(immediate bool) {
-	if !f.started {
-		return
-	}
-	f.fadeOutStarted = true
-	// immediate: not used in this simple implementation
+       if !f.started || !f.FadeOutSec.IsSome() {
+	       return
+       }
+       now := float64(time.Now().UnixNano()) / 1e9
+       if !f.startTime.IsSome() {
+	       f.Start()
+       }
+       f.fadeoutStartedTime = optional.Some[float64](now)
+       if immediate {
+		startValRaw, _ := f.startTime.Value()
+		startVal := startValRaw.(float64)
+		elapsed := now - startVal
+	       if elapsed < float64(f.FadeInSec) {
+		       diffIn := float64(f.FadeInSec) - elapsed
+		       diffInRate := diffIn / float64(f.FadeInSec)
+		       fadeOutVal, _ := f.FadeOutSec.Take()
+		       diffOut := diffInRate * float64(fadeOutVal)
+					   f.startTime = optional.Some[float64](startVal - (diffIn + diffOut))
+					   fadeoutValRaw, _ := f.fadeoutStartedTime.Value()
+					   fadeoutVal := fadeoutValRaw.(float64)
+					   f.fadeoutStartedTime = optional.Some[float64](fadeoutVal - (diffIn + diffOut))
+	       }
+       }
 }
 
 func (f *InteractiveFader) IsStarted() bool {
-	return f.started
+	return f.started && f.startTime.IsSome()
 }
 
 func (f *InteractiveFader) IsFadeOutStarted() bool {
-	return f.fadeOutStarted
+	return f.fadeoutStartedTime.IsSome()
 }
 
 func (f *InteractiveFader) IsFinished() bool {
-	if !f.started {
-		return false
-	}
-	total := f.FadeInSec
-	if f.FadeOutSec.IsSome() {
-		v, _ := f.FadeOutSec.Take()
-		total += v
-	}
-	return float32(time.Since(f.startTime).Seconds()) > total
+       if !f.started || !f.startTime.IsSome() {
+	       return false
+       }
+	startValRaw, _ := f.startTime.Value()
+	startVal := startValRaw.(float64)
+	elapsed := float32(float64(time.Now().UnixNano())/1e9 - startVal)
+       if f.fadeoutStartedTime.IsSome() && f.FadeOutSec.IsSome() {
+	       fadeOutVal, _ := f.FadeOutSec.Take()
+	       return elapsed > f.FadeInSec + float32(fadeOutVal)
+       }
+       return false
 }
 
 func (f *InteractiveFader) Alpha(fn func(alpha float32)) {
-	t := float32(time.Since(f.startTime).Seconds())
-	var fadeOut float32
-	if f.FadeOutSec.IsSome() {
-		v, _ := f.FadeOutSec.Take()
-		fadeOut = v
-	} else {
-		fadeOut = 0
-	}
-	Alpha(t, f.FadeInSec, 0, fadeOut, fn)
+       if !f.startTime.IsSome() {
+	       fn(0)
+	       return
+       }
+	startValRaw, _ := f.startTime.Value()
+	startVal := startValRaw.(float64)
+	t := float32(float64(time.Now().UnixNano())/1e9 - startVal)
+       var staticSec float32 = 0
+       var fadeOut float32 = 0
+       if f.fadeoutStartedTime.IsSome() && f.FadeOutSec.IsSome() {
+	       fadeOutVal, _ := f.FadeOutSec.Take()
+			   fadeoutValRaw, _ := f.fadeoutStartedTime.Value()
+			   fadeoutVal := fadeoutValRaw.(float64)
+			   staticSec = float32(fadeoutVal - startVal - float64(f.FadeInSec))
+	       if staticSec < 0 {
+		       staticSec = 0
+	       }
+	       fadeOut = fadeOutVal
+       }
+       Alpha(t, f.FadeInSec, staticSec, fadeOut, fn)
 }
 
 func (f *InteractiveFader) AlphaMore(fn func(alpha, rateEasing, rateTime float32, phase Phase), easingFuncIn EasingFunction, easingTypeIn EasingType, easingFuncOut EasingFunction, easingTypeOut EasingType) {
-	t := float32(time.Since(f.startTime).Seconds())
-	var fadeOut float32
-	if f.FadeOutSec.IsSome() {
-		v, _ := f.FadeOutSec.Take()
-		fadeOut = v
-	} else {
-		fadeOut = 0
-	}
-	AlphaMore(t, f.FadeInSec, 0, optional.Some[float32](fadeOut), fn, easingFuncIn, easingTypeIn, easingFuncOut, easingTypeOut)
+       if !f.startTime.IsSome() {
+	       fn(0, 0, 0, FadeIn)
+	       return
+       }
+	startValRaw, _ := f.startTime.Value()
+	startVal := startValRaw.(float64)
+	t := float32(float64(time.Now().UnixNano())/1e9 - startVal)
+       var staticSec float32 = 0
+       var fadeOut float32 = 0
+       if f.fadeoutStartedTime.IsSome() && f.FadeOutSec.IsSome() {
+	       fadeOutVal, _ := f.FadeOutSec.Take()
+			   fadeoutValRaw, _ := f.fadeoutStartedTime.Value()
+			   fadeoutVal := fadeoutValRaw.(float64)
+			   staticSec = float32(fadeoutVal - startVal - float64(f.FadeInSec))
+	       if staticSec < 0 {
+		       staticSec = 0
+	       }
+	       fadeOut = fadeOutVal
+       }
+       AlphaMore(t, f.FadeInSec, staticSec, optional.Some[float32](fadeOut), fn, easingFuncIn, easingTypeIn, easingFuncOut, easingTypeOut)
 }
 
 func (f *InteractiveFader) Delta(delta float32, fn func(delta float32)) {
-	t := float32(time.Since(f.startTime).Seconds())
-	var fadeOut float32
-	if f.FadeOutSec.IsSome() {
-		v, _ := f.FadeOutSec.Take()
-		fadeOut = v
-	} else {
-		fadeOut = 0
-	}
-	Delta(t, f.FadeInSec, 0, fadeOut, delta, fn)
+       if !f.startTime.IsSome() {
+	       fn(0)
+	       return
+       }
+	startValRaw, _ := f.startTime.Value()
+	startVal := startValRaw.(float64)
+	t := float32(float64(time.Now().UnixNano())/1e9 - startVal)
+       var staticSec float32 = 0
+       var fadeOut float32 = 0
+       if f.fadeoutStartedTime.IsSome() && f.FadeOutSec.IsSome() {
+	       fadeOutVal, _ := f.FadeOutSec.Take()
+			   fadeoutValRaw, _ := f.fadeoutStartedTime.Value()
+			   fadeoutVal := fadeoutValRaw.(float64)
+			   staticSec = float32(fadeoutVal - startVal - float64(f.FadeInSec))
+	       if staticSec < 0 {
+		       staticSec = 0
+	       }
+	       fadeOut = fadeOutVal
+       }
+       Delta(t, f.FadeInSec, staticSec, fadeOut, delta, fn)
 }
 
 func (f *InteractiveFader) DeltaMore(delta float32, fn func(delta, alpha, rateEasing, rateTime float32, phase Phase), easingFuncIn EasingFunction, easingTypeIn EasingType, easingFuncOut EasingFunction, easingTypeOut EasingType) {
-	t := float32(time.Since(f.startTime).Seconds())
-	var fadeOut float32
-	if f.FadeOutSec.IsSome() {
-		v, _ := f.FadeOutSec.Take()
-		fadeOut = v
-	} else {
-		fadeOut = 0
-	}
-	DeltaMore(t, f.FadeInSec, 0, optional.Some[float32](fadeOut), delta, fn, easingFuncIn, easingTypeIn, easingFuncOut, easingTypeOut)
+       if !f.startTime.IsSome() {
+	       fn(0, 0, 0, 0, FadeIn)
+	       return
+       }
+	startValRaw, _ := f.startTime.Value()
+	startVal := startValRaw.(float64)
+	t := float32(float64(time.Now().UnixNano())/1e9 - startVal)
+       var staticSec float32 = 0
+       var fadeOut float32 = 0
+       if f.fadeoutStartedTime.IsSome() && f.FadeOutSec.IsSome() {
+	       fadeOutVal, _ := f.FadeOutSec.Take()
+			   fadeoutValRaw, _ := f.fadeoutStartedTime.Value()
+			   fadeoutVal := fadeoutValRaw.(float64)
+			   staticSec = float32(fadeoutVal - startVal - float64(f.FadeInSec))
+	       if staticSec < 0 {
+		       staticSec = 0
+	       }
+	       fadeOut = fadeOutVal
+       }
+       DeltaMore(t, f.FadeInSec, staticSec, optional.Some[float32](fadeOut), delta, fn, easingFuncIn, easingTypeIn, easingFuncOut, easingTypeOut)
 }
 
 // NonInteractiveFader provides fade-in/static/fade-out timer for non-interactive usage.

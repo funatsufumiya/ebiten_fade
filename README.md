@@ -1,7 +1,5 @@
 # ebiten_fade
 
-WIP
-
 Ebitengine port from [ofxFade](github.com/funatsufumiya/ofxFade)
 
 
