@@ -7,4 +7,4 @@ Ebitengine port from [ofxFade](github.com/funatsufumiya/ofxFade)
 
 0BSD
 
-(Note that [easing.go](./fade/easing/easing.go) is based on [go-easing](https://github.com/creasty/go-easing): [MIT License](https://github.com/creasty/go-easing/LICENSE.txt).)
+(Note that [easing.go](./fade/easing/easing.go) is based on [go-easing](https://github.com/creasty/go-easing): [MIT License](https://github.com/creasty/go-easing/blob/master/LICENSE.txt).)
