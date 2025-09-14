@@ -1,6 +1,6 @@
 # ebiten_fade
 
-Ebitengine port from [ofxFade](github.com/funatsufumiya/ofxFade)
+Ebitengine port from [ofxFade](https://github.com/funatsufumiya/ofxFade)
 
 > [!WARNING]
 > Go port was almost done by GitHub Copilot. Use with care.
