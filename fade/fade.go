@@ -112,6 +112,18 @@ func AlphaMore(
 
 }
 
+func PhaseToString(p Phase) string {
+	switch p {
+	case FadeIn:
+		return "FadeIn"
+	case Static:
+		return "Static"
+	case FadeOut:
+		return "FadeOut"
+	}
+	return "Unknown"
+}
+
 // applyEasing is a stub for go-easing function call. Replace with actual go-easing usage.
 func applyEasing(funcType EasingFunction, typeType EasingType, t float32) float32 {
 	switch funcType {

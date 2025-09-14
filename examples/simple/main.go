@@ -38,7 +38,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		func(rateEasing, rateTime float32, phase fade.Phase) {
 			ebitenutil.DebugPrintAt(screen, "rateEasing: "+formatFloat(rateEasing), 200, 50)
 			ebitenutil.DebugPrintAt(screen, "rateTime: "+formatFloat(rateTime), 200, 100)
-			ebitenutil.DebugPrintAt(screen, "phase: "+phaseToString(phase), 200, 150)
+			ebitenutil.DebugPrintAt(screen, "phase: "+fade.PhaseToString(phase), 200, 150)
 
 			// Indicator bars
 			barColor := color.NRGBA{100, 100, 100, 255}
@@ -58,18 +58,6 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 
 func formatFloat(f float32) string {
 	return fmt.Sprintf("%.2f", f)
-}
-
-func phaseToString(p fade.Phase) string {
-	switch p {
-	case fade.FadeIn:
-		return "FadeIn"
-	case fade.Static:
-		return "Static"
-	case fade.FadeOut:
-		return "FadeOut"
-	}
-	return "Unknown"
 }
 
 func main() {
